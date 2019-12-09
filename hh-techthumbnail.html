@@ -281,7 +281,6 @@
           series.set(image.id, src);//(window.URL || window.webkitURL).createObjectURL(image.blob));
 
           let oPos = _infoSize.Position[image.seriesIdx];
-          console.log(oPos);
           if (oPos) {
             if (_thumbnail.series[oPos.Cell.seriesIdx].image[oPos.Cell.imageIdx].seriesInstanceUID === image.series
                     && _thumbnail.series[oPos.Cell.seriesIdx].image[oPos.Cell.imageIdx].contentID === image.id) {
@@ -866,12 +865,10 @@
             centerHeight=2;
           }
 
-          console.log(seriesId + "   "+imageId);
           this.getFile(seriesId, imageId).then(src => {
             return new Promise(resolve => {
               img.src = src;
               img.onload = () => {
-                console.log(img);
                 resolve(img);
               }
             }).then(value => {
