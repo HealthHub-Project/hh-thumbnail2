@@ -1,0 +1,1643 @@
+<link rel="import" href="../polymer/polymer-element.html">
+<link rel="import" href="../paper-icon-button/paper-icon-button.html">
+<link rel="import" href="../paper-tooltip/paper-tooltip.html">
+<link rel="import" href="../vaadin-icons/vaadin-icons.html">
+
+<dom-module id="hh-thumbnail">
+  <template>
+    <style>
+      :host {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      .container-column {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        height: 100%;
+      }
+
+      .flex-child {
+        display: flex;
+        flex: 1;
+        padding: 10px 0;
+        height: 100%;
+      }
+
+      /*prev, next paging*/
+      .seriesPaging {
+        display: flex;
+        flex: 1;
+        align-items: center;
+      }
+
+      .pagingIcon {
+        padding: 5px;
+        width: 25px;
+        height: 25px;
+        color: #aaaaaa;
+      }
+
+      .pagingIcon:hover {
+        color: #0087cb;
+      }
+
+      /*next paging + setting button*/
+      .settingContainer {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      /*setting button 사이즈 만큼 밑으로 내려가 center로 잡아줌*/
+      #nextImages {
+        margin-bottom: 50px;
+      }
+
+      /*setting button*/
+      .settingIcon {
+        position: relative;
+        padding: 0px;
+        width: 15px;
+        height: 15px;
+        color: #aaaaaa;
+        top: 18px;
+        right: 30px;
+      }
+
+      .settingIcon:hover {
+        color: #2baab1;
+      }
+
+      .container-thumbnail-image {
+        width: 100%;
+        height: 100%;
+        text-align: center;
+        background-color: #252934;
+      }
+
+      .canvasImage {
+        height: 100%;
+        width: 100%;
+      }
+
+      paper-icon-button, #setSeriesDesc[disabled],
+      paper-icon-button, #setSeriesDesc[toggles][active] {
+        color: #2baab1;
+      }
+
+    </style>
+    <div class="container-column">
+      <div class="flex-child">
+        <div class="seriesPaging">
+          <paper-icon-button id="prevImages" class="pagingIcon" raised icon="vaadin:chevron-left" on-click="prevImages"></paper-icon-button>
+          <paper-tooltip for="prevImages" offset="0" animation-delay="0" animation-entry="scale-up-animation" animation-exit="fade-out-animation">prev</paper-tooltip>
+        </div>
+        <div id="containerThumbnailImage" class="container-thumbnail-image">
+          <canvas id="canvasImages" class="canvasImage"></canvas>
+          <!--<paper-tooltip id="seriesDescTooltip" for="canvasImages" offset="0" animation-delay="0" animation-entry="scale-up-animation" animation-exit="fade-out-animation">{{seriesDesc}}</paper-tooltip>-->
+          <paper-tooltip id="seriesDescTooltip" for="canvasImages">{{seriesDesc}}</paper-tooltip>
+        </div>
+        <div class="settingContainer">
+          <div class="wrap-report-setting">
+            <paper-icon-button toggles id="setSeriesDesc" class="settingIcon" icon="vaadin:font"></paper-icon-button>
+            <paper-tooltip for="setSeriesDesc" offset="0" animation-delay="0" animation-entry="scale-up-animation" animation-exit="fade-out-animation">SeriesDescription On/Off</paper-tooltip>
+          </div>
+          <div class="wrap-report-setting" on-click="setThumbnailCell">
+            <paper-icon-button id="setThumbnailCell" class="settingIcon" icon="vaadin:grid-small"></paper-icon-button>
+            <paper-tooltip for="setThumbnailCell" offset="0" animation-delay="0" animation-entry="scale-up-animation" animation-exit="fade-out-animation">Thumbnail Setting</paper-tooltip>
+          </div>
+          <div class="seriesPaging">
+            <paper-icon-button id="nextImages" class="pagingIcon" raised icon="vaadin:chevron-right" on-click="nextImages"></paper-icon-button>
+            <paper-tooltip for="nextImages" offset="0" animation-delay="0" animation-entry="scale-up-animation" animation-exit="fade-out-animation">next</paper-tooltip>
+          </div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <script>
+    /**
+     * `hh-thumbnail`
+     *
+     * @Version 1.0.1
+     * @Date    20190918
+     *
+     * @customElement
+     * @polymer
+     * @demo demo/index.html
+     */
+    (function () {
+      let _this;
+
+      //   window.requestFileSystem  = window.requestFileSystem || window.webkitRequestFileSystem;
+
+      const type = {
+        TOAST: 'toast'
+      };
+
+      const msg = {
+        NOT_FOUND_ERR: 'Downloading Thumbnail image.'
+      };
+
+      // let _firstStart = true;
+      // 셋팅 버튼 클릭 유무
+      let _checkThumbnailCell;
+
+      // 셀 정보
+      let Info = function () { };
+
+      // 셀 사이즈
+      let _infoSize = {};
+
+      // 썸네일
+      let _thumbnail = {};
+
+      let _arrImage = [];
+
+      let _nextImage = false;
+      let _prevImage = false;
+
+      let _nextIdx = 0;
+
+      // 업무종류
+      // 셀크기 설정
+      let e_EditMode_SelectCell = 0;
+      // 셀종류 설정
+      let e_EditMode_SetPosition = 1;
+
+      // 버튼종류
+      // 버튼
+      // let e_Button_Button = 0;
+      // 라디오버튼
+      let e_Button_Radio = 1;
+
+      // 셀 종류
+      // None
+      let e_CellStyle_None = 0;
+      // // New
+      // let e_CellStyle_New = 1;
+      // // Old
+      // let e_CellStyle_Old = 2;
+      // // First
+      // let e_CellStyle_First = 3;
+
+      // 기본글자
+      let m_sBaseText = "혫";
+
+      // Layout 설정 여부
+      let _bLayout = false;
+
+      // let _ddpThumbnailLayout;
+
+      // Series 갯수
+      let _seriesLen = 0;
+
+      let _workListObjId;
+
+      let _thumbnailCell = false;
+
+      // canvas안의 thumbnail 영역
+      let g_thumbnailArea = {};
+
+      // tab 이동시 설정되어있는 thumbnail position(seriesIdx, imageIdx)
+      let g_tabPos = [];
+
+      class HhThumbnail extends Polymer.Element {
+        static get is() { return 'hh-thumbnail'; }
+        static get properties() {
+          return {
+            prop1: {
+              type: String,
+              value: 'hh-thumbnail'
+            },
+            seriesDesc: {
+              type: String,
+              value: ""
+            },
+            m_prefetch: {
+              type: Object
+            },
+            m_thumbs: {
+              type: Map
+            },
+            maxImageWorker: {
+              type: Number,
+              value: 10
+            }
+          };
+        }
+
+        constructor() {
+          super();
+
+          this.m_thumbs = new Map();
+          _this = this;
+        }
+
+        ready() {
+          super.ready();
+
+          const config = {
+            url: imageDownloadUrl,
+            method: 'GET',
+            headers: { 'Authorization': localStorage.getItem('jwt') },
+            maxImageWorker: this.maxImageWorker
+          };
+          this.m_prefetch = Prefetch.create(config);
+          this.m_prefetch.on(Prefetch.EVENTS.IMAGE_DONE, image => {
+            this.setThumbImage(image, (window.URL || window.webkitURL).createObjectURL(image.blob));
+          });
+          this.m_prefetch.on(Prefetch.EVENTS.IMAGE_NOT_EXISTS, image => {
+            this.setThumbImage(image, '/resource/images/notfound-image.png');
+          });
+          this.m_prefetch.on(Prefetch.EVENTS.IMAGE_ERROR, (image, message, error) => {
+            console.error('thumbnail download error', error);
+            //TODO: 오류 이미지도 필요함.
+            this.setThumbImage(image, '/resource/images/notfound-image.png');
+          });
+
+          window.addEventListener('WebComponentsReady', e => {
+            _this.startBody();
+          });
+
+          // series Description default setting
+          this.$.setSeriesDesc.active = true;
+          // series Description on/off
+          this.$.setSeriesDesc.addEventListener("active-changed", () => {
+            _this.drawImages();
+          });
+
+        }
+
+        setThumbImage(image, src) {
+          let series = this.m_thumbs.get(image.series);
+          if(!series) {
+            series = new Map();
+            this.m_thumbs.set(image.series, series);
+          }
+          series.set(image.id, src);//(window.URL || window.webkitURL).createObjectURL(image.blob));
+
+          let oPos = _infoSize.Position[image.seriesIdx];
+          if(oPos) {
+            if(_thumbnail.series[oPos.Cell.seriesIdx].image[oPos.Cell.imageIdx].seriesInstanceUID === image.series
+                    && _thumbnail.series[oPos.Cell.seriesIdx].image[oPos.Cell.imageIdx].contentID === image.id) {
+              this.drawImage(oPos);
+            }
+          }
+        }
+
+        /**
+         * function setExamInfo
+         * RequestObjectId로 의뢰 이미지 조회 후 출력
+         *
+         * Create by 김민정 on 2019-01-03 오후 2:46
+         * @param {}
+         * @return {}
+         **/
+        setExambyId(id, resultThumbnail) {
+          _workListObjId = id;
+          this.m_thumbs.clear();
+          this.m_prefetch.reset();
+
+          if(_infoSize.Position !== undefined && resultThumbnail !== undefined && typeof(resultThumbnail.series) != "undefined"){
+            _seriesLen = resultThumbnail.series.length;
+            _this.seriesPagingClear();
+            _this.startBody();
+            _this.setCellThumbnail(resultThumbnail);
+
+            (resultThumbnail.series||[]).forEach((series, seriesIdx) => {
+              const oPos = _infoSize.Position[seriesIdx];
+              (series.image||[]).map((m, imageIdx) => {
+                const image = {id: m.contentID, imageIdx: imageIdx, seriesIdx: seriesIdx, series: series.seriesInstanceUID, study: id, path: '/prefetch/download/image/'+ m.contentID + '/small'};
+
+                if(oPos && (oPos.Cell||{}).imageIdx === imageIdx) {
+                  this.m_prefetch.add(image, 1);
+                } else {
+                  this.m_prefetch.add(image, 2);
+                }
+              });
+            });
+          }
+        }
+
+        seriesPagingClear() {
+          g_tabPos = [];
+          _arrImage = [];
+          _nextIdx = 0;
+          _nextImage = false;
+          _prevImage = false;
+        }
+
+        errorHandler(e) {
+          let message = '';
+          switch (e.code) {
+            case 22:
+              message = 'QUOTA_EXCEEDED_ERR';
+              break;
+            case 8:
+              message = 'NOT_FOUND_ERR';
+              break;
+            case 18:
+              message = 'SECURITY_ERR';
+              break;
+            case 13:
+              message = 'INVALID_MODIFICATION_ERR';
+              break;
+            default:
+              message = 'Unknown Error';
+              break;
+          };
+
+          _this.toast(type.TOAST, msg.NOT_FOUND_ERR, true);
+
+        }
+
+        toast(type, msg, isErr) {
+          let message = new Object();
+          message.type = type;
+          message.msg = msg;
+          message.isErr = isErr;
+
+          let param = new Object();
+          param.detail = message;
+          this.dispatchEvent(new CustomEvent('toastEvent', param));
+        }
+
+        /**
+         * function clearThumbnail
+         * Thumbnail 초기화
+         *
+         * Create by 김민정 on 2018-10-25 오후 4:09
+         * @param {}
+         * @return {}
+         **/
+        clearThumbnail() {
+          _seriesLen=0;
+          _this.startBody();
+        }
+
+        startBody() {
+          _this.InitializeFunction();
+          // _this.InitializeMember();
+          _this.InitializeInfo();
+          _this.InitializeEvent();
+
+          _this.resizeCanvas();
+
+          _this.drawBoard();
+        }
+
+        /**
+         * function tabStartBody
+         * tab이동시 설정되있는 position대로 thumbnail redraw
+         *
+         * Create by 김민정 on 2019-01-28 오후 5:40
+         * @param {}
+         * @return {}
+         **/
+        tabStartBody() {
+          if(g_tabPos.length === 0) { // thumbnail tab이 아닐 경우 초기 thumbnail draw
+            _this.resizeCanvas();
+            _this.setCellThumbnail(_thumbnail);
+          }
+          else { // thumbnail tab일 경우 설정되어있는 thumbnail position을 가지고 redraw
+            _this.drawTabImagesRedraw();
+          }
+        }
+
+        resizeCanvas() {
+          let canvas = _this.$.canvasImages;
+
+          // canvas size로 설정
+          canvas.width = _this.$.containerThumbnailImage.offsetWidth;
+          canvas.height = _this.$.containerThumbnailImage.offsetHeight;
+
+          Info.Width = canvas.width;
+          Info.Height = canvas.height;
+
+          _this.setSelectCellBounds();
+          _this.setSetPositionCellBounds();
+          _this.drawBoard();
+        }
+
+        InitializeFunction() {
+          // padLeft
+          if (!String.prototype.padLeft) {
+            String.prototype.padLeft = function padLeft(nLength, sPadString) {
+              nLength = nLength >> 0;
+              sPadString = String(sPadString || " ");
+
+              if (this.length > nLength) {
+                return String(this);
+              }
+              else {
+                nLength = nLength - this.length;
+
+                if (nLength > sPadString.length) {
+                  sPadString += sPadString.repeat(nLength / sPadString.length);
+                }// if
+
+                return sPadString.slice(0, nLength) + String(this);
+              }
+            }// function
+          }// if
+        }
+
+        InitializeInfo() {
+          let canvas = _this.$.canvasImages;
+
+          Info.Context = canvas.getContext("2d");
+
+          Info.Width = _this.$.containerThumbnailImage.offsetWidth;
+          Info.Height = _this.$.containerThumbnailImage.offsetHeight;
+
+          Info.EditMode = e_EditMode_SetPosition;
+          _this.InitializeInfoSetPosition();
+
+          if(_checkThumbnailCell !== undefined && _checkThumbnailCell) { // 설정버튼 클릭했을시
+            Info.EditMode = e_EditMode_SelectCell;
+            _this.InitializeInfoSelectCell();
+            _this.InitializeInfoSetPosition();
+          }
+        }
+
+        InitializeInfoSelectCell() {
+          Info.SelectCell = function () { };
+
+          Info.SelectCell.Rows = 10;
+          Info.SelectCell.Columns = 10;
+          Info.SelectCell.PaddingWidth = -0.5;
+          Info.SelectCell.SelectedRow = -1;
+          Info.SelectCell.SelectedColumn = -1;
+          Info.SelectCell.SelectedIndex = -1;
+
+          Info.SelectCell.BackColor = "rgba(0,0,0,0.8)";
+          Info.SelectCell.BorderColor = "rgba(210, 210, 210, 0.7)";
+          Info.SelectCell.SelectedBackColor = "rgba(210, 210, 210, 0.2)";
+          Info.SelectCell.TextFont = "100px Verdana bold";
+          Info.SelectCell.TextColor = "rgba(210, 210, 210, 0.7)";
+
+          Info.SelectCell.Cells = [];
+          _this.setSelectCellBounds();
+        }
+
+        InitializeInfoSetPosition() {
+          let obj = function () { };
+
+          obj.PaddingWidth = 3;
+
+          // 시리즈 갯수 별 layout 지정
+          if(_seriesLen === 0){
+            obj.Rows = 2;
+            obj.Columns = 2;
+          }
+          else {
+            let seriesLayout;
+
+            for(let rowCol = 1; rowCol <= 10; rowCol++) {
+              let thumbnailLayout = rowCol*rowCol;
+              if(_seriesLen <= thumbnailLayout) {
+                if(rowCol !== 1){
+                  seriesLayout = thumbnailLayout / rowCol;
+                  break;
+                }
+                else {
+                  seriesLayout = rowCol;
+                  break;
+                }
+              }
+            }
+
+            obj.Rows = seriesLayout;
+            obj.Columns = seriesLayout;
+          }
+
+          obj.GapHeight = 3;
+          obj.ButtonGapWidth = 2;
+
+          obj.Buttons = [];
+
+          obj.Command = "";
+
+          obj.ForeColor = "rgba(210, 210, 210, 0.7)";
+          obj.BackColor = "rgba(0,0,0,0.8)";
+          obj.BorderColor = "rgba(210, 210, 210, 0.7)";
+          obj.SelectedBackColor = "rgba(0,0,0,0.7)";
+
+          obj.TextFont = "12px Verdana";
+          obj.TextColor = "rgba(210, 210, 210, 0.7)";
+
+          // obj.Drags = [];
+          obj.MouseDragCellIndex = -1;
+
+          obj.Cells = [];
+
+          Info.SetPosition = obj;
+
+          _this.setSetPositionCellBounds();
+
+          for (let i = 0; i < obj.Cells.length; i++) {
+            obj.Cells[i].Command = "";
+            obj.Cells[i].SortNo = 0;
+          }// for i
+        }
+
+        setSetPositionCheck(sCommand) {
+          for (let i = 0; i < Info.SetPosition.Buttons.length; i++) {
+
+            let obj = Info.SetPosition.Buttons[i];
+
+            if (obj.Style === e_Button_Radio && obj.Command === sCommand) {
+              obj.Checked = true;
+              Info.SetPosition.Command = sCommand;
+            }// if
+            else {
+              obj.Checked = false;
+            }
+          }// for i
+        }
+
+        setSetPositionClear() {
+          for (let i = 0; i < Info.SetPosition.Cells.length; i++) {
+            let obj = Info.SetPosition.Cells[i];
+
+            obj.Command = "";
+          }// for i
+
+          _this.drawBoard();
+        }
+
+        InitializeEvent() {
+          _this.$.canvasImages.addEventListener('mousemove', _this.OnMouseMove, false);
+          _this.$.canvasImages.addEventListener('mousedown', _this.OnMouseDown, false);
+          _this.$.canvasImages.addEventListener('mouseup', _this.OnMouseUp, false);
+          _this.$.canvasImages.addEventListener('mousewheel', _this.OnMouseWheel, false);
+          _this.$.canvasImages.addEventListener('dblclick', _this.OnMouseDoubleClick, false);
+          _this.$.canvasImages.addEventListener('mouseover', _this.OnMouseOver, false);
+        }
+
+        drawBoard() {
+          Info.Context.clearRect(0, 0, Info.Width, Info.Height);
+          Info.Context.fillStyle = "rgba(0,0,0,0.8)";
+
+          Info.Context.fillRect(0, 0, Info.Width, Info.Height);
+
+          if (Info.EditMode === e_EditMode_SelectCell) {
+            _bLayout = false;
+            _this.drawSelectCell();
+
+          }// if
+          else if (Info.EditMode === e_EditMode_SetPosition) {
+            _bLayout = true;
+            _this.drawSetPosition();
+          }// else if
+
+        }
+
+        drawSelectCell() {
+          let nBorderWidth = 1;
+
+          for (let i = 0; i < Info.SelectCell.Cells.length; i++) {
+
+            let nX = Info.SelectCell.Cells[i].Position.X;
+            let nY = Info.SelectCell.Cells[i].Position.Y;
+            let nW = Info.SelectCell.Cells[i].Size.Width;
+            let nH = Info.SelectCell.Cells[i].Size.Height;
+
+            // 배경
+            if (Info.SelectCell.Cells[i].Include) {
+              Info.Context.fillStyle = Info.SelectCell.SelectedBackColor;
+            }
+            else {
+              Info.Context.fillStyle = Info.SelectCell.BackColor;
+            }
+            Info.Context.fillRect(nX, nY, nW, nH);
+          }// for i
+
+          // 글
+          let sText = "".concat(Info.SelectCell.SelectedRow + 1, "X", Info.SelectCell.SelectedColumn + 1);
+          Info.Context.beginPath();
+          Info.Context.font = Info.SelectCell.TextFont;
+          Info.Context.fillStyle = Info.SelectCell.TextColor;
+          Info.Context.textAlign = "left";
+          Info.Context.textBaseline = "top";
+
+          let nTextW = Info.Context.measureText(sText).width;
+          let nTextH = Info.Context.measureText(m_sBaseText).width + Info.Context.measureText(m_sBaseText).width / 2;
+
+          let nTextX = (Info.Width - nTextW) / 2;
+          let nTextY = (Info.Height - nTextH) / 2;
+
+          Info.Context.fillText(sText, nTextX, nTextY);
+
+          for (let i = 0; i < Info.SelectCell.Cells.length; i++) {
+
+            let nX = Info.SelectCell.Cells[i].Position.X;
+            let nY = Info.SelectCell.Cells[i].Position.Y;
+            let nW = Info.SelectCell.Cells[i].Size.Width;
+            let nH = Info.SelectCell.Cells[i].Size.Height;
+
+            // 줄
+            Info.Context.beginPath();
+            Info.Context.strokeStyle = Info.SelectCell.BorderColor;
+            Info.Context.strokeRect(nX + 0.5, nY + 0.5, nW, nH);
+          }// for i
+
+        }
+
+        drawSetPosition() {
+          _infoSize.Position = [];
+
+          // Draw Cells
+          for (let i = 0; i < Info.SetPosition.Cells.length; i++) {
+
+            let oCell = Info.SetPosition.Cells[i];
+
+            let nX = oCell.Position.X;
+            let nY = oCell.Position.Y;
+            let nW = oCell.Size.Width;
+            let nH = oCell.Size.Height;
+
+            // Cell Position, Size 정보
+            _infoSize.Position.push(oCell);
+
+            // Border
+            Info.Context.beginPath();
+            Info.Context.strokeStyle = Info.SetPosition.BorderColor;
+            Info.Context.strokeRect(nX + 0.5, nY + 0.5, nW, nH);
+          }// for i
+        }
+
+        setCellThumbnail(resultThumbnail) {
+          let nPos = 0;
+
+          for (let series in resultThumbnail.series) {
+
+            let oCell = {};
+
+            if (_infoSize.Position.length > nPos && series !== undefined) {
+              oCell.seriesIdx = parseInt(series);
+              oCell.lastimageIdx = resultThumbnail.series[series].image.length;
+              if(resultThumbnail.series[series].fileType == "KeyImage") {
+                oCell.imageIdx = 0;
+              } else {
+                oCell.imageIdx = parseInt((oCell.lastimageIdx/2)-1);
+              }
+
+
+              let objImg = {};
+
+              let arrSize = [];
+
+              for(let img of resultThumbnail.series[series].image) {
+
+                let imgSize = new Object();
+
+                imgSize.width = img.width;
+                imgSize.height = img.height;
+                imgSize.size = imgSize.width*imgSize.height;
+
+                arrSize.push(imgSize);
+              }
+
+              objImg = arrSize;
+
+              oCell.imgSize = objImg;
+
+              _infoSize.Position[nPos].Cell = oCell;
+            }
+
+
+            if(_infoSize.Position.length <= nPos){
+              _nextImage = true;
+
+              oCell.seriesIdx = parseInt(series);
+              oCell.lastimageIdx = resultThumbnail.series[series].image.length;
+              if(resultThumbnail.series[series].fileType == "KeyImage") {
+                oCell.imageIdx = 0;
+              } else {
+                oCell.imageIdx = parseInt((oCell.lastimageIdx/2)-1);
+              }
+
+
+              let objImg = {};
+
+              let arrSize = [];
+
+              for(let img of resultThumbnail.series[series].image) {
+
+                let imgSize = new Object();
+
+                imgSize.width = img.width;
+                imgSize.height = img.height;
+                imgSize.size = imgSize.width*imgSize.height;
+
+                arrSize.push(imgSize);
+              }
+
+              objImg = arrSize;
+
+              oCell.imgSize = objImg;
+            }
+
+            _arrImage.push(oCell);
+
+            nPos++;
+
+          } // for
+
+          _thumbnail = resultThumbnail;
+
+          _this.clearCanvas();
+          _this.drawImages();
+
+        }
+
+        // canvas 초기화
+        clearCanvas() {
+          for (let i in _infoSize.Position){
+            let oCell = _infoSize.Position[i];
+            Info.Context.clearRect(oCell.Position.X+2, oCell.Position.Y+2, oCell.Size.Width-3, oCell.Size.Height-3);
+            _this.setSetPositionClear();
+          }
+        }
+
+        drawTabImagesRedraw() {
+          if(_bLayout){
+
+            for (let series in g_tabPos.length) {
+              let oPos = _infoSize.Position[series];
+              // if(oPos !== undefined && _thumbnail.studies[0].series[oPos.Cell.seriesIdx] !== undefined){
+              if(oPos !== undefined && oPos.Cell !== null) {
+                this.drawImage(oPos);
+              }
+              else {
+                break;
+              }
+            }
+          }
+        }
+
+        drawImages() {
+          if(_bLayout){
+            _this.drawBoard();
+            for (let series in _thumbnail.series) {
+              let oPos = _infoSize.Position[series];
+              // if(oPos !== undefined && _thumbnail.studies[0].series[oPos.Cell.seriesIdx] !== undefined){
+              if(oPos !== undefined && oPos.Cell !== null) {
+                g_tabPos.push(oPos);
+
+                this.drawImage(oPos);
+              }
+              else {
+                break;
+              }
+            }
+          }
+        }
+
+        getFile(seriesId, imageId) {
+          return new Promise(resolve => {
+            const series = this.m_thumbs.get(seriesId);
+            if(series) {
+              const image = series.get(imageId);
+              if(image) resolve(image);
+              else resolve('/resource/images/loading-image.png');
+            } else {
+              resolve('/resource/images/loading-image.png');
+            }
+          });
+        }
+
+        drawImage(oPos) {
+          let img = new Image();
+          // let seriesId = _thumbnail.series[oPos.Cell.seriesIdx].seriesInstanceUID;
+          let seriesId = _thumbnail.series[oPos.Cell.seriesIdx].image[oPos.Cell.imageIdx].seriesInstanceUID;
+          let imageId = _thumbnail.series[oPos.Cell.seriesIdx].image[oPos.Cell.imageIdx].contentID;
+
+          // 원본 이미지 크기
+          let imgWidth = _thumbnail.series[oPos.Cell.seriesIdx].image[oPos.Cell.imageIdx].width;
+          let imgHeight = _thumbnail.series[oPos.Cell.seriesIdx].image[oPos.Cell.imageIdx].height;
+
+          // cell 크기
+          let maxWidth = oPos.Size.Width;
+          let maxHeight = oPos.Size.Height;
+
+          // 사이즈 조정 이미지 크기
+          let resizeWidth;
+          let resizeHeight;
+
+          // 이미지 비율
+          if (imgWidth > imgHeight) {
+            resizeWidth = maxWidth;
+            resizeHeight = Math.round((imgHeight * resizeWidth) / imgWidth);
+          } else {
+            resizeHeight = maxHeight;
+            resizeWidth = Math.round((imgWidth * resizeHeight) / imgHeight);
+          }
+
+          // 비율 맞춘 이미지가 클 경우 축소
+          let scaleX = maxWidth / resizeWidth;
+          let scaleY = maxHeight / resizeHeight;
+
+          let scale = (scaleX < scaleY) ? scaleX : scaleY;
+
+          if(scale>1){
+            scale=1;
+          }
+          resizeWidth = scale*resizeWidth;
+          resizeHeight = scale*resizeHeight;
+
+          // 이미지 중앙에 위치
+          let centerWidth = (maxWidth-resizeWidth)/2;
+          let centerHeight = (maxHeight-resizeHeight)/2;
+          let testHeight = (maxHeight-resizeHeight);
+
+
+          if(centerWidth===0){
+            centerWidth=2;
+          }
+
+          if(centerHeight===0){
+            centerHeight=2;
+          }
+
+          this.getFile(seriesId, imageId).then(src => {
+            return new Promise(resolve => {
+              img.src = src;
+              img.onload = () => {
+                resolve(img);
+              }
+            }).then(value => {
+              Info.Context.drawImage(value, oPos.Position.X+centerWidth, oPos.Position.Y+centerHeight, resizeWidth-2, resizeHeight-2);
+
+              let seriesDesc = "";
+              if(_thumbnail.series[oPos.Cell.seriesIdx].seriesDescription) seriesDesc =_thumbnail.series[oPos.Cell.seriesIdx].seriesDescription;
+              let imgTotalCnt = _thumbnail.series[oPos.Cell.seriesIdx].image.length;
+              let imgCnt = oPos.Cell.imageIdx + 1;
+              let cntInfo = imgCnt + "/" + imgTotalCnt;
+              let fileType = _thumbnail.series[oPos.Cell.seriesIdx].fileType;
+
+
+              if (seriesDesc === "hie_unknown" || !seriesDesc) {
+                if (fileType == "KeyImage") {
+                  seriesDesc = "Key";
+                } else {
+                  seriesDesc = "N/A";
+                }
+              }
+
+              seriesDesc = _this.trim(seriesDesc);
+
+              if (_this.$.setSeriesDesc.active) {
+                if (fileType == "KeyImage") {
+                  _this.drawTextDesc(seriesDesc, oPos.Position.X + 5, oPos.Position.Y + 5, maxWidth - 10, 1.0, "red");
+                } else {
+                  _this.drawTextDesc(seriesDesc, oPos.Position.X + 5, oPos.Position.Y + 5, maxWidth - 10, 1.0, "white");
+                }
+                _this.drawTextCnt(cntInfo, oPos.Position.X + 5, oPos.Position.Y + maxHeight - 2);
+              }
+            });
+          });
+        }
+
+        /**
+         * 문자열 앞/뒤 공백 제거
+         *
+         * Create by joohyukjung on 16/04/2019 4:52 PM
+         * @param {}
+         * @return {}
+         **/
+        trim(s) {
+          s += ''; // 숫자라도 문자열로 변환
+          return s.replace(/^\s*|\s*$/g, '');
+        }
+        /**
+         * function resizeText
+         * font Size 조정
+         *
+         * Create by 김민정 on 2018-10-22 오후 5:31
+         * @param {}
+         * @return {}
+         **/
+        resizeText(seriesDesc, resizeWidth) {
+          let size = 24;
+
+          Info.Context.beginPath();
+          Info.Context.fillStyle = "white";
+          Info.Context.textAlign = "left";
+          Info.Context.textBaseline = "top";
+
+          do{
+            size--;
+            Info.Context.font = "bold " + size + "px Arial";
+          }while(Info.Context.measureText(seriesDesc).width>resizeWidth);
+        }
+
+        /**
+         * multi line text(series description)
+         * canvas에 text(series description)를 여러줄로 표현
+         *
+         * Create by joohyukjung on 16/04/2019 4:54 PM
+         * @param {}
+         * @return {}
+         **/
+        drawTextDesc(text, x, y, fieldWidth, spacing, color) {
+          Info.Context.beginPath();
+          Info.Context.fillStyle = color;
+          Info.Context.textAlign = "left";
+          Info.Context.textBaseline = "top";
+          Info.Context.font = "15px Consolas";
+
+          var line = "";
+          var fontSize = parseFloat(Info.Context.font);
+          var currentY = y;
+          // Info.Context.textBaseline = "top";
+          for(var i=0; i<text.length; i++) {
+            var tempLine = line + text[i];
+            var tempWidth = Info.Context.measureText(tempLine).width;
+
+            if (tempWidth < fieldWidth && text[i] != '\n') {
+              line = tempLine;
+            }
+            else {
+              Info.Context.fillText(line, x, currentY);
+              if(text[i] != '\n') line = text[i];
+              else line = "";
+              currentY += fontSize*spacing;
+            }
+          }
+          Info.Context.fillText(line, x, currentY);
+          Info.Context.rect(x, y, fieldWidth, currentY-y+fontSize*spacing);
+          // Info.Context.stroke();
+        }
+
+        /**
+         * 이미지 수 / 시리즈 수 표시
+         *
+         * Create by joohyukjung on 16/04/2019 6:35 PM
+         * @param {}
+         * @return {}
+         **/
+        drawTextCnt(text, x, y) {
+          Info.Context.beginPath();
+          Info.Context.fillStyle = "white";
+          Info.Context.textAlign = "left";
+          Info.Context.textBaseline = "bottom";
+          Info.Context.font = "13px Consolas";
+          Info.Context.fillText(text, x, y);
+        }
+
+
+        // Mouse Wheel Event Thumbnail Image
+        drawWheelImages(e, nX, nY){
+          for (let i in _infoSize.Position) {
+            let nL = _infoSize.Position[i].Position.X;
+            let nT = _infoSize.Position[i].Position.Y;
+            let nW = _infoSize.Position[i].Size.Width;
+            let nH = _infoSize.Position[i].Size.Height;
+            let nR = nL + nW;
+            let nB = nT + nH;
+
+            if (nX >= nL && nX <= nR && nY >= nT && nY <= nB) {
+              if(_infoSize.Position[i].Cell !== undefined && _infoSize.Position[i].Cell !== null){ // 이미지가 있을때
+                if (e.wheelDelta > 0) { // 휠을 올렸을때
+                  let firstImgSize = _infoSize.Position[i].Cell.imgSize[0].size;
+                  let firstWidth = _infoSize.Position[i].Cell.imgSize[0].width;
+                  let imgIdx = _infoSize.Position[i].Cell.imageIdx;
+
+                  // 첫번째 이미지 보다 작을 때 캔버스 클리어
+                  if(firstImgSize!==_infoSize.Position[i].Cell.imgSize[imgIdx].size
+                          || firstWidth!==_infoSize.Position[i].Cell.imgSize[imgIdx].width){
+                    _this.clearCanvas();
+                  }
+
+                  _infoSize.Position[i].Cell.imageIdx -= 1;
+
+                  if(_infoSize.Position[i].Cell.imageIdx < 0){
+                    _infoSize.Position[i].Cell.imageIdx = 0;
+                    break;
+                  }
+                  else {
+                    _this.drawImages();
+                  }
+                }
+                else if (e.wheelDelta < 0) { // 휠을 내렸을때
+                  _infoSize.Position[i].Cell.imageIdx += 1;
+
+                  if(_infoSize.Position[i].Cell.imageIdx >= _infoSize.Position[i].Cell.lastimageIdx){
+                    _infoSize.Position[i].Cell.imageIdx = (_infoSize.Position[i].Cell.lastimageIdx-1);
+                    break;
+                  }
+                  else {
+                    let firstImgSize = _infoSize.Position[i].Cell.imgSize[0].size;
+                    let firstWidth = _infoSize.Position[i].Cell.imgSize[0].width;
+                    let imgIdx = _infoSize.Position[i].Cell.imageIdx;
+
+                    // 첫번째 이미지 보다 작을 때 캔버스 클리어
+                    if(firstImgSize!==_infoSize.Position[i].Cell.imgSize[imgIdx].size
+                            || firstWidth!==_infoSize.Position[i].Cell.imgSize[imgIdx].width){
+                      _this.clearCanvas();
+                    }
+                    _this.drawImages();
+                  }
+                }
+              } // if
+            } // if
+          } // for
+        }
+
+        setSelectCellBounds() {
+          if (Info.Width < 1 || Info.Height < 1) {
+            return;
+          }
+
+          if (Info.EditMode !== e_EditMode_SelectCell) {
+            return;
+          }
+
+          let nStartCellX = Info.SelectCell.PaddingWidth;
+          let nStartCellY = Info.SelectCell.PaddingWidth;
+
+          let nRow = Info.SelectCell.Rows;
+          let nCol = Info.SelectCell.Columns;
+
+          let nOneWidth = parseInt(Info.Width / nCol)+nStartCellX;
+          let nOneHeight = parseInt(Info.Height / nRow)+nStartCellY;
+
+          Info.SelectCell.Cells = [];
+          Info.SelectCell.SelectedRow = -1;
+          Info.SelectCell.SelectedColumn = -1;
+          Info.SelectCell.SelectedIndex = -1;
+
+          for (let i = 0; i < nRow; i++) {
+            for (let j = 0; j < nCol; j++) {
+
+              let cellInfo = {};
+              cellInfo.Row = i;
+              cellInfo.Col = j;
+              cellInfo.CellStyle = e_CellStyle_None;
+
+              let nX = (cellInfo.Col * nOneWidth);
+              let nY = (cellInfo.Row * nOneHeight);
+
+              cellInfo.Position = _this.newPoint(nX, nY);
+              cellInfo.Size = _this.newSize(nOneWidth, nOneHeight);
+
+              Info.SelectCell.Cells.push(cellInfo);
+            }// for j
+          }// for i
+        }
+
+        setSetPositionCellBounds() {
+          if (Info.Width < 1 || Info.Height < 1) {
+            return;
+          }
+
+          if (Info.EditMode !== e_EditMode_SetPosition) {
+            return;
+          }
+
+          let nStartCellX = Info.SetPosition.PaddingWidth;
+          let nStartCellY = Info.SetPosition.PaddingWidth;
+
+          Info.SetPosition.Cells = [];
+
+          let nRow = Info.SetPosition.Rows;
+          let nCol = Info.SetPosition.Columns;
+
+          let nWholeWidth = Info.Width - (Info.SetPosition.PaddingWidth * 2);
+          let nWholeHeight = Info.Height - Info.SetPosition.PaddingWidth - nStartCellY;
+
+          let nOneWidth = parseInt(nWholeWidth / nCol);
+          let nOneHeight = parseInt(nWholeHeight / nRow);
+
+          for (let i = 0; i < nRow; i++) {
+            for (let j = 0; j < nCol; j++) {
+
+              let cellInfo = {};
+              cellInfo.Row = i;
+              cellInfo.Col = j;
+
+              let nX = (cellInfo.Col * nOneWidth) + nStartCellX;
+              let nY = (cellInfo.Row * nOneHeight) + nStartCellY;
+
+              cellInfo.Position = _this.newPoint(nX, nY);
+              cellInfo.Size = _this.newSize(nOneWidth, nOneHeight);
+
+              Info.SetPosition.Cells.push(cellInfo);
+            }// for j
+          }// for i
+        }
+
+        GetButtonsHeight() {
+          let nHeight = 0;
+
+          for (let i = 0; i < Info.SetPosition.Buttons.length; i++) {
+
+            if (nHeight < Info.SetPosition.Buttons[i].Size.Height) {
+              nHeight = Info.SetPosition.Buttons[i].Size.Height;
+            }// if
+
+          }// for i
+
+          return nHeight;
+        }
+
+        newPoint(nX, nY) {
+          let Point = {};
+          Point.X = nX;
+          Point.Y = nY;
+
+          return Point;
+        }
+
+        newSize(nWidth, nHeight) {
+          let Size = {};
+          Size.Width = nWidth;
+          Size.Height = nHeight;
+
+          return Size;
+        }
+
+        OnMouseMove(e) {
+          let canvas = _this.$.canvasImages;
+          let bound = canvas.getBoundingClientRect();
+          let bw = 5;
+
+          let nX = (e.x - bound.left - bw) * (canvas.offsetWidth / (bound.width - bw * 2));
+          let nY = (e.y - bound.top - bw) * (canvas.offsetHeight / (bound.height - bw * 2));
+
+          let nBtn = e.buttons;
+
+          if (Info.EditMode === e_EditMode_SelectCell) {
+
+            _this.SetMouseMove_SelectCell(nX, nY, nBtn);
+
+          }
+          else {
+            // drag
+            _this.SetMouseMove_SetPosition(nX, nY, nBtn);
+          }
+        }
+
+        OnMouseDown(e) {
+          let canvas = _this.$.canvasImages;
+          let bound = canvas.getBoundingClientRect();
+          let bw = 5;
+
+          let nX = (e.x - bound.left - bw) * (canvas.offsetWidth / (bound.width - bw * 2));
+          let nY = (e.y - bound.top - bw) * (canvas.offsetHeight / (bound.height - bw * 2));
+          let nBtn = e.buttons;
+
+          if (Info.EditMode === e_EditMode_SelectCell) {
+            // layout 설정
+            _this.SetMouseDown_SelectCell(nX, nY, nBtn);
+
+            if(_thumbnail.series !== undefined) {
+              // layout 설정 후 썸네일 이미지 Redraw
+              _this.seriesPagingClear();
+              _this.setCellThumbnail(_thumbnail);
+            }
+          }
+        }
+
+        OnMouseUp(e) {
+          let canvas = _this.$.canvasImages;
+          let bound = canvas.getBoundingClientRect();
+          let bw = 5;
+
+          let nX = (e.x - bound.left - bw) * (canvas.offsetWidth / (bound.width - bw * 2));
+          let nY = (e.y - bound.top - bw) * (canvas.offsetHeight / (bound.height - bw * 2));
+          let nBtn = e.buttons;
+
+          if (Info.EditMode === e_EditMode_SelectCell) {
+          }
+          else if (Info.EditMode === e_EditMode_SetPosition) {
+            //_this.SetMouseUp_SetPosition(nX, nY, nBtn);
+          }
+        }
+
+        OnMouseWheel(e) {
+          let canvas = _this.$.canvasImages;
+          let bound = canvas.getBoundingClientRect();
+          let bw = 5;
+
+          let nX = (e.x - bound.left - bw) * (canvas.offsetWidth / (bound.width - bw * 2));
+          let nY = (e.y - bound.top - bw) * (canvas.offsetHeight / (bound.height - bw * 2));
+
+          _this.drawWheelImages(e, nX, nY);
+        }
+
+        OnMouseDoubleClick(e) {
+          // let nSelected = Info.MouseDragCellIndex;
+          // let oPos = _infoSize.Position[nSelected];
+          // console.log(oPos.Cell.imageIdx+1);
+
+          let canvas = _this.$.canvasImages;
+          let bound = canvas.getBoundingClientRect();
+          let bw = 5;
+
+          let nX = (e.x - bound.left - bw) * (canvas.offsetWidth / (bound.width - bw * 2));
+          let nY = (e.y - bound.top - bw) * (canvas.offsetHeight / (bound.height - bw * 2));
+          let nBtn = 1;
+
+          if (Info.EditMode === e_EditMode_SetPosition) {
+            _this.SetMouseDown_SetPosition(nX, nY, nBtn);
+          }
+
+          // Thumbnail Canvas에 이미지가 출력되었을때 실행
+          if(_arrImage.length > 0) {
+            // Thumbnail Canvas영역 안에서만 실행
+            if (nX >= g_thumbnailArea.nL && nX <= g_thumbnailArea.nR && nY >= g_thumbnailArea.nT && nY <= g_thumbnailArea.nB) {
+              // Thumbnail Selected Series Info
+              if (Info.MouseDownCellIndex !== undefined && _infoSize.Position[Info.MouseDownCellIndex] !== undefined) {
+                if (_infoSize.Position[Info.MouseDownCellIndex].Cell !== undefined) {
+                  let oViewImage = _infoSize.Position[Info.MouseDownCellIndex];
+                  let imageIndex = oViewImage.Cell.imageIdx + 1;
+                  let seriesId = _thumbnail.series[oViewImage.Cell.seriesIdx].seriesInstanceUID;
+                  let param = {};
+                  param.detail = {
+                    "seriesId": seriesId,
+                    "imageIndex": imageIndex
+                  };
+                  _this.dispatchEvent(new CustomEvent('setSelectedSeriesInfoEvent', param));
+                }
+              }
+            }
+          }
+        }
+
+        OnMouseOver(e) {
+          let canvas = _this.$.canvasImages;
+          let bound = canvas.getBoundingClientRect();
+          let bw = 5;
+
+          let nX = (e.x - bound.left - bw) * (canvas.offsetWidth / (bound.width - bw * 2));
+          let nY = (e.y - bound.top - bw) * (canvas.offsetHeight / (bound.height - bw * 2));
+
+          let nBtn = e.buttons;
+
+          _this.SetMouseMove_SetPosition(nX, nY, nBtn);
+        }
+
+        SetMouseMove_SelectCell(nX, nY, nBtn) {
+          _this.$.seriesDescTooltip.playAnimation("exit");
+
+          let bRedraw = false;
+          let bMatch = false;
+          let nSelected = Info.SelectCell.SelectedIndex;
+
+          if (nSelected > -1 && Info.SelectCell.Cells.length > nSelected) {
+            let nL = Info.SelectCell.Cells[nSelected].Position.X;
+            let nT = Info.SelectCell.Cells[nSelected].Position.Y;
+            let nW = Info.SelectCell.Cells[nSelected].Size.Width;
+            let nH = Info.SelectCell.Cells[nSelected].Size.Height;
+            let nR = nL + nW;
+            let nB = nT + nH;
+
+            if (nX >= nL && nX <= nR && nY >= nT && nY <= nB) {
+              bMatch = true;
+            }// if
+          }
+
+          if (!bMatch) {
+            Info.SelectCell.SelectedIndex = -1;
+            Info.SelectCell.SelectedRow = -1;
+            Info.SelectCell.SelectedColumn = -1;
+
+            for (let i = 0; i < Info.SelectCell.Cells.length; i++) {
+
+              let nL = Info.SelectCell.Cells[i].Position.X;
+              let nT = Info.SelectCell.Cells[i].Position.Y;
+              let nW = Info.SelectCell.Cells[i].Size.Width;
+              let nH = Info.SelectCell.Cells[i].Size.Height;
+              let nR = nL + nW;
+              let nB = nT + nH;
+
+              if (nX >= nL && nX <= nR && nY >= nT && nY <= nB) {
+
+                Info.SelectCell.SelectedIndex = i;
+                Info.SelectCell.SelectedRow = Info.SelectCell.Cells[i].Row;
+                Info.SelectCell.SelectedColumn = Info.SelectCell.Cells[i].Col;
+
+                let nSelCol = Info.SelectCell.SelectedColumn;
+                let nSelRow = Info.SelectCell.SelectedRow;
+
+                bMatch = true;
+                bRedraw = true;
+
+                for (let j = 0; j < Info.SelectCell.Cells.length; j++) {
+                  let nCol = Info.SelectCell.Cells[j].Col;
+                  let nRow = Info.SelectCell.Cells[j].Row;
+
+                  if (nCol <= nSelCol && nRow <= nSelRow) {
+                    Info.SelectCell.Cells[j].Include = true;
+                  }
+                  else {
+                    Info.SelectCell.Cells[j].Include = false;
+                  }
+                }// for j
+
+                break;
+              }// if
+            }// for i
+
+          }// if
+
+          if (bRedraw) {
+            _this.drawBoard();
+          }
+        }
+
+        SetMouseMove_SetPosition(nX, nY, nBtn) {
+          let bRedraw = false;
+          let bMatch = false;
+          let nSelected = Info.MouseDragCellIndex;
+
+          if (nSelected > -1 && Info.SetPosition.Cells.length > nSelected) {
+            let nL = Info.SetPosition.Cells[nSelected].Position.X;
+            let nT = Info.SetPosition.Cells[nSelected].Position.Y;
+            let nW = Info.SetPosition.Cells[nSelected].Size.Width;
+            let nH = Info.SetPosition.Cells[nSelected].Size.Height;
+            let nR = nL + nW;
+            let nB = nT + nH;
+
+            if (nX >= nL && nX <= nR && nY >= nT && nY <= nB) {
+              // series Desc Tooltip
+              _this.SetMouseOver_SetTooltip(_nextIdx+nSelected);
+
+              bMatch = true;
+            }// if
+            else {
+              _this.$.seriesDescTooltip.playAnimation("exit");
+            }
+          }
+
+          if (!bMatch) {
+            for (let i = 0; i < Info.SetPosition.Cells.length; i++) {
+              let nL = Info.SetPosition.Cells[i].Position.X;
+              let nT = Info.SetPosition.Cells[i].Position.Y;
+              let nW = Info.SetPosition.Cells[i].Size.Width;
+              let nH = Info.SetPosition.Cells[i].Size.Height;
+              let nR = nL + nW;
+              let nB = nT + nH;
+
+              if (nX >= nL && nX <= nR && nY >= nT && nY <= nB) {
+                Info.MouseDragCellIndex = i;
+
+                // series Desc Tooltip
+                _this.SetMouseOver_SetTooltip(_nextIdx+i);
+
+                bMatch = true;
+                // break;
+              }// if
+              else {
+                _this.$.seriesDescTooltip.playAnimation("exit");
+              }
+            }// for i
+
+          }// if
+
+          if (bRedraw) {
+            _this.drawBoard();
+          }
+        }
+
+        SetMouseDown_SelectCell(nX, nY, nBtn) {
+          if (nBtn === 1) {
+            _this.SetMouseMove_SelectCell(nX, nY, nBtn);
+
+            if (Info.SelectCell.SelectedRow > -1 && Info.SelectCell.SelectedColumn > -1) {
+
+              Info.EditMode = e_EditMode_SetPosition;
+              Info.SetPosition.Rows = Info.SelectCell.SelectedRow + 1;
+              Info.SetPosition.Columns = Info.SelectCell.SelectedColumn + 1;
+              _this.setSetPositionCellBounds();
+              _this.drawBoard();
+            }
+          }// if
+        }
+
+        SetMouseDown_SetPosition(nX, nY, nBtn) {
+          if (nBtn === 1) {
+            for (let i = 0; i < Info.SetPosition.Cells.length; i++) {
+              let oCell = Info.SetPosition.Cells[i];
+
+              let nL = oCell.Position.X;
+              let nT = oCell.Position.Y;
+              let nW = oCell.Size.Width;
+              let nH = oCell.Size.Height;
+              let nR = nL + nW;
+              let nB = nT + nH;
+
+              g_thumbnailArea.nL = nL;
+              g_thumbnailArea.nR = nR;
+              g_thumbnailArea.nT = nT;
+              g_thumbnailArea.nB = nB;
+
+              if (nX >= nL && nX <= nR && nY >= nT && nY <= nB) {
+                Info.MouseDownCellIndex = i;
+                break;
+              }// if
+            }// for i
+          }
+        }
+
+        SetMouseUp_SetPosition(nX, nY, nBtn) {
+
+          // if (Info.SetPosition.Drags.length) {
+          //
+          //     for (let i = 0; i < Info.SetPosition.Drags.length; i++) {
+          //         let nIndex = Info.SetPosition.Drags[i];
+          //
+          //         if (Info.SetPosition.Cells[nIndex].Command !== Info.SetPosition.Command)
+          //         {
+          //             let nSeq = _this.GetMaxSortNo(Info.SetPosition.Command) + 1;
+          //
+          //             Info.SetPosition.Cells[nIndex].Command = Info.SetPosition.Command;
+          //             Info.SetPosition.Cells[nIndex].SortNo = nSeq;
+          //         }
+          //     }// for i
+          //
+          //     Info.SetPosition.Drags = [];
+          //     _this.drawBoard();
+          // }//if
+
+        }
+
+        SetMouseOver_SetTooltip(nSelected) {
+          if(_thumbnail.series !== undefined && _thumbnail.series[nSelected] !== undefined) {
+            _this.seriesDesc = _thumbnail.series[nSelected].seriesDescription;
+
+            if (_this.seriesDesc === "hie_unknown") {
+              _this.seriesDesc = "-";
+            }
+
+            _this.$.seriesDescTooltip.playAnimation("entry");
+          }
+          else {
+            _this.$.seriesDescTooltip.playAnimation("exit");
+          }
+        }
+
+        GetMaxSortNo(sCommand) {
+          let asCommands = ["NEW", "OLD", "FIRST"];
+          let obj = [];
+
+          for (let i = 0; i < asCommands.length; i++) {
+            obj[asCommands[i]] = [];
+          }
+
+          for (let i = 0; i < Info.SetPosition.Cells.length; i++) {
+
+            let oCell = Info.SetPosition.Cells[i];
+
+            if (oCell.Command !== undefined &&  oCell.Command !== "") {
+              obj[oCell.Command].push("".concat(oCell.SortNo.toString().padLeft(2, "0"), ",", i));
+            }// if
+
+          }// for i
+
+          for (let i = 0; i < asCommands.length; i++) {
+            obj[asCommands[i]].sort();
+          }
+
+          for (let i = 0; i < asCommands.length; i++) {
+            for (let j = 0; j < obj[asCommands[i]].length; j++) {
+
+              let sCell = obj[asCommands[i]][j];
+              let asCell = sCell.split(",");
+              let nCellIndex = parseInt(asCell[1]);
+
+              Info.SetPosition.Cells[nCellIndex].SortNo = j + 1;
+
+            }// for j
+          }// for i
+
+          return obj[sCommand].length;
+        }
+
+        nextImages() {
+          if(_nextImage){
+
+            _prevImage = true;
+
+            let nPos = 0;
+
+            // 셀 갯수
+            let nCellLen = _infoSize.Position.length;
+            // 총 시리즈 갯수
+            let nSeriesLen = _arrImage.length - 1;
+
+            for(let i in _infoSize.Position) {
+
+              // 다음 페이지에서 시작되는 시리즈 index
+              let nextSeries = _nextIdx+nCellLen;
+
+              if(nextSeries === nSeriesLen){
+                _nextImage = false;
+              }
+
+              if (nSeriesLen >= nextSeries) {
+                _infoSize.Position[nPos].Cell = _arrImage[nextSeries];
+              }
+              else {
+                _nextImage = false;
+                _infoSize.Position[nPos].Cell = null;
+              }
+
+              nPos++;
+              _nextIdx++;
+
+            }
+
+            _this.clearCanvas();
+            _this.drawImages();
+
+          } // if
+        }
+
+        prevImages() {
+          if(_prevImage){
+
+            let nSeriesLen = _arrImage.length;
+            let nCellLen = _infoSize.Position.length;
+            let emptySeries = nSeriesLen-nCellLen;
+
+            // 코드 1391번 줄에서 증가를 하고  루프문에서 빠져나오기 때문에 -1을 해줘야함
+            _nextIdx-=1;
+
+            // 남은 시리즈가 있는지 확인
+            if(emptySeries > 0) {
+              nSeriesLen =  nSeriesLen-emptySeries-1;
+              _nextImage = true;
+            }
+            else {
+              _prevImage = false;
+            }
+
+            for(let nPos in _infoSize.Position) {
+
+              if(_nextIdx >= 0) {
+                _infoSize.Position[nSeriesLen-parseInt(nPos)].Cell = _arrImage[_nextIdx];
+              }
+              else {
+                _prevImage = false;
+                break;
+              }
+
+              _nextIdx--;
+
+            }
+
+            _this.clearCanvas();
+            _this.drawImages();
+
+            // 코드 1432번 줄에서 감소를 하고  루프문에서 빠져나오기 때문에 +1을 해줘야함
+            _nextIdx+=1;
+
+          } // if
+        }
+
+        /**
+         * function getThumbnailCell
+         * Thumbnail 설정버튼 클릭 유무 확인
+         *
+         * Create by 김민정 on 2018-05-17 오후 3:57
+         * @param {Boolean} checkSet
+         * @return {Boolean} checkSet
+         **/
+        getThumbnailCell(checkSet) {
+          _checkThumbnailCell = checkSet;
+        }
+
+        /**
+         * function setThumbnailCell
+         * Thumbnail 설정버튼 이벤트
+         *
+         * Create by 김민정 on 2018-12-06 오전 9:57
+         * @param {}
+         * @return {}
+         **/
+        setThumbnailCell() {
+          _thumbnailCell = true;
+
+          let param = new Object();
+          param.detail = _thumbnailCell;
+
+          _this.getThumbnailCell(param.detail);
+          _this.startBody();
+
+          param.detail = false;
+          _this.getThumbnailCell(param.detail);
+        }
+      }
+
+      window.customElements.define(HhThumbnail.is, HhThumbnail);
+    })();
+  </script>
+</dom-module>

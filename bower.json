@@ -1,0 +1,37 @@
+{
+  "name": "hh-thumbnail",
+  "main": "hh-thumbnail.html",
+  "version":"1.0.1",
+  "dependencies": {
+    "paper-tooltip": "PolymerElements/paper-tooltip#2.1.1",
+    "paper-icon-button": "PolymerElements/paper-icon-button#2.2.1",
+    "vaadin-icons": "vaadin/vaadin-icons#^4.2.1"
+  },
+  "devDependencies": {
+    "iron-demo-helpers": "PolymerElements/iron-demo-helpers#^2.0.0",
+    "web-component-tester": "Polymer/web-component-tester#^6.0.0",
+    "webcomponentsjs": "webcomponents/webcomponentsjs#^1.0.0"
+  },
+  "resolutions": {
+    "polymer": "^2.0.0"
+  },
+  "homepage": "https://github.com/HealthHub-Project/hh-thumbnail",
+  "authors": [
+    "mjkim"
+  ],
+  "description": "",
+  "keywords": [
+    "polymer",
+    "healthhub",
+    "thumbnail"
+  ],
+  "license": "MIT",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ]
+}
