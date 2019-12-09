@@ -1,7 +1,7 @@
 {
-  "name": "hh-thumbnail",
-  "main": "hh-thumbnail.html",
-  "version":"1.0.1",
+  "name": "hh-thumbnail2",
+  "main": "hh-techthumbnail.html",
+  "version": "1.0.0",
   "dependencies": {
     "paper-tooltip": "PolymerElements/paper-tooltip#2.1.1",
     "paper-icon-button": "PolymerElements/paper-icon-button#2.2.1",
@@ -15,9 +15,9 @@
   "resolutions": {
     "polymer": "^2.0.0"
   },
-  "homepage": "https://github.com/HealthHub-Project/hh-thumbnail",
+  "homepage": "https://github.com/HealthHub-Project/hh-thumbnail2",
   "authors": [
-    "mjkim"
+    "jb"
   ],
   "description": "",
   "keywords": [
@@ -26,12 +26,13 @@
     "thumbnail"
   ],
   "license": "MIT",
-  "private": true,
   "ignore": [
     "**/.*",
     "node_modules",
     "bower_components",
     "test",
     "tests"
-  ]
+  ],
+  private:false
 }
+
