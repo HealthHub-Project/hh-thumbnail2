@@ -311,7 +311,7 @@
             (resultThumbnail.series||[]).forEach((series, seriesIdx) => {
               const oPos = _infoSize.Position[seriesIdx];
               (series.image||[]).map((m, imageIdx) => {
-                const image = {id: m.contentID, imageIdx: imageIdx, seriesIdx: seriesIdx, series: series.seriesInstanceUID, study: id, path: '/prefetch/download/image/'+ m.contentID + '/small'};
+                const image = {id: m.contentID, imageIdx: imageIdx, seriesIdx: seriesIdx, series: series.seriesInstanceUID, study: id, path: '/prefetch/download/image/'+ m.contentID + '/large'};
 
                 if(oPos && (oPos.Cell||{}).imageIdx === imageIdx) {
                   this.m_prefetch.add(image, 1);
