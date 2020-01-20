@@ -876,7 +876,8 @@
 
               let seriesDesc = "";
               // if(_thumbnail.series[oPos.Cell.seriesIdx].seriesDescription) seriesDesc =_thumbnail.series[oPos.Cell.seriesIdx].seriesDescription;
-              let imgTotalCnt = _thumbnail.series[oPos.Cell.seriesIdx].image.length;
+              let imgTotalCnt = 0;
+              if(oPos.Cell.seriesIdx <= _thumbnail.series.length) imgTotalCnt = _thumbnail.series[oPos.Cell.seriesIdx].image.length;
               let imgCnt = oPos.Cell.imageIdx + 1;
               let cntInfo = imgCnt + "/" + imgTotalCnt;
               let fileType = _thumbnail.series[oPos.Cell.seriesIdx].fileType;
